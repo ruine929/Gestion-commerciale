@@ -5,6 +5,8 @@ from models.client import Client
 from app import db
 from datetime import datetime, timedelta
 from sqlalchemy import func, extract
+from services.stock_service import StockService
+from services.vente_service import VenteService
 
 class StatistiqueService:
     """Service pour la génération de statistiques"""
@@ -12,7 +14,6 @@ class StatistiqueService:
     @staticmethod
     def get_balance_commerciale(date_debut=None, date_fin=None):
         """Calcule la balance commerciale (ventes - achats)"""
-        # Calculer le total des ventes
         ventes_query = db.session.query(func.sum(Vente.montant_total)).filter_by(statut='completed')
         if date_debut:
             ventes_query = ventes_query.filter(Vente.date_vente >= date_debut)
@@ -21,7 +22,6 @@ class StatistiqueService:
         
         total_ventes = ventes_query.scalar() or 0
         
-        # Calculer le total des achats
         achats_query = db.session.query(func.sum(Achat.montant_total)).filter_by(statut='completed')
         if date_debut:
             achats_query = achats_query.filter(Achat.date_achat >= date_debut)
@@ -47,14 +47,12 @@ class StatistiqueService:
         if not annee:
             annee = datetime.now().year
         
-        # Ventes du mois
         ventes = Vente.query.filter(
             extract('month', Vente.date_vente) == mois,
             extract('year', Vente.date_vente) == annee,
             Vente.statut == 'completed'
         ).all()
         
-        # Achats du mois
         achats = Achat.query.filter(
             extract('month', Achat.date_achat) == mois,
             extract('year', Achat.date_achat) == annee,
@@ -86,15 +84,12 @@ class StatistiqueService:
         previous_year_stats = []
         
         for mois in range(1, 13):
-            # Statistiques année courante
             current_stats = StatistiqueService.get_monthly_statistics(mois, annee)
             current_year_stats.append(current_stats)
             
-            # Statistiques année précédente
             previous_stats = StatistiqueService.get_monthly_statistics(mois, annee - 1)
             previous_year_stats.append(previous_stats)
         
-        # Calculer les totaux annuels
         total_current = {
             'ventes': sum(stat['total_ventes'] for stat in current_year_stats),
             'achats': sum(stat['total_achats'] for stat in current_year_stats),
@@ -107,7 +102,6 @@ class StatistiqueService:
             'benefice': sum(stat['benefice'] for stat in previous_year_stats)
         }
         
-        # Calculer les variations
         variations = {}
         for key in total_current:
             if total_previous[key] > 0:
@@ -141,9 +135,7 @@ class StatistiqueService:
                 'panier_moyen': sum(vente.montant_total for vente in ventes) / len(ventes) if ventes else 0
             })
         
-        # Trier par montant total décroissant
         client_stats.sort(key=lambda x: x['montant_total'], reverse=True)
-        
         return client_stats
     
     @staticmethod
@@ -159,7 +151,6 @@ class StatistiqueService:
             ca_genere = sum(vente.montant_total for vente in ventes)
             benefice_genere = sum(vente.benefice for vente in ventes)
             
-            # Calcul de la rotation du stock
             rotation = quantite_vendue / produit.stock_initial if produit.stock_initial > 0 else 0
             
             product_stats.append({
@@ -171,9 +162,7 @@ class StatistiqueService:
                 'marge_moyenne': (benefice_genere / ca_genere * 100) if ca_genere > 0 else 0
             })
         
-        # Trier par chiffre d'affaires décroissant
         product_stats.sort(key=lambda x: x['ca_genere'], reverse=True)
-        
         return product_stats
     
     @staticmethod
@@ -183,33 +172,23 @@ class StatistiqueService:
         debut_semaine = aujourd_hui - timedelta(days=7)
         debut_mois = aujourd_hui.replace(day=1)
         
-        # Statistiques du jour
         ventes_jour = Vente.query.filter(
             func.date(Vente.date_vente) == aujourd_hui,
             Vente.statut == 'completed'
         ).all()
         
-        # Statistiques de la semaine
         ventes_semaine = Vente.query.filter(
             Vente.date_vente >= debut_semaine,
             Vente.statut == 'completed'
         ).all()
         
-        # Statistiques du mois
         ventes_mois = Vente.query.filter(
             Vente.date_vente >= debut_mois,
             Vente.statut == 'completed'
         ).all()
         
-        # Balance commerciale du mois
         balance_mois = StatistiqueService.get_balance_commerciale(debut_mois)
-        
-        # Produits en stock faible
-        from services.stock_service import StockService
         produits_stock_faible = StockService.get_products_with_low_stock()
-        
-        # Top 5 des produits les plus vendus ce mois
-        from services.vente_service import VenteService
         top_produits = VenteService.get_top_selling_products(limit=5, days=30)
         
         return {
@@ -233,12 +212,10 @@ class StatistiqueService:
     @staticmethod
     def export_statistics_data(format_export='dict', date_debut=None, date_fin=None):
         """Exporte les données statistiques"""
-        # Récupérer toutes les données
         balance = StatistiqueService.get_balance_commerciale(date_debut, date_fin)
         client_stats = StatistiqueService.get_client_statistics()
         product_stats = StatistiqueService.get_product_performance()
         
-        # Préparer les données d'export
         export_data = {
             'periode': {
                 'debut': date_debut.isoformat() if date_debut else None,
