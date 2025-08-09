@@ -1,0 +1,14 @@
+# Fichiers cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Fichiers temporaires
+*.bin
+*.log
+*.tmp
+
+# Environnement virtuel
+venv/
+.env
