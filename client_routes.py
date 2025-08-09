@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required
 from models.client import Client
+from models.vente import Vente
 from services.vente_service import VenteService
 from services.statistique_service import StatistiqueService
 from app import db
@@ -36,7 +37,6 @@ def list_clients():
             query = query.order_by(db.desc(Client.date_inscription))
         elif sort_by == 'total_achats':
             # Tri complexe par total des achats - utilise une sous-requête
-            from models.vente import Vente
             subquery = db.session.query(
                 Vente.client_id,
                 db.func.sum(Vente.montant_total).label('total')
@@ -223,7 +223,3 @@ def export_clients():
         ]
         
         return export_to_csv(data, 'clients.csv', headers)
-        
-    except Exception as e:
-        flash(f"Erreur lors de l'export: {str(e)}", "error")
-        return redirect(url_for('client.list_clients'))
